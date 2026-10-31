@@ -22,6 +22,8 @@ const time=v=>new Date(v).toLocaleString("no-NO",{day:"2-digit",month:"2-digit",
 let flashTimer=null;
 function note(s,ok=false){if(flashTimer)clearTimeout(flashTimer);flash.innerHTML='<div class="alert '+(ok?'success':'')+'">'+esc(s)+'</div>';flashTimer=setTimeout(()=>{flash.innerHTML="";flashTimer=null},12000)}
 function err(e){note(e?.message||String(e))}
+function hasUnsentDraft(){return [...document.querySelectorAll('form textarea,form input[type="file"]')].some(el=>el.type==="file"?el.files.length>0:el.value.trim().length>0)}
+function canRefreshView(){return !document.activeElement?.closest("form")&&!hasUnsentDraft()}
 function box(title,body,extra=""){return '<section class="panel '+extra+'"><h2>'+title+'</h2>'+body+'</section>'}
 function button(txt,fn,cls="secondary"){return '<button type="button" class="'+cls+'" data-action="'+fn+'">'+txt+'</button>'}
 async function query(table,columns="*"){const r=await sb.from(table).select(columns);if(r.error)throw r.error;return r.data||[]}
@@ -44,10 +46,10 @@ sb.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT")setTimeout(boot,0)})
 const messageChanged=(latest,known)=>(latest?.[0]?.id||null)!==(known?.length?known[known.length-1].id:null);
 let stageRefreshBusy=false;setInterval(async()=>{if(!user||stageRefreshBusy||document.hidden||mediaUploadBusy)return;stageRefreshBusy=true;const previousStage=team?teams.find(t=>t.id===team)?.current_stage:null;try{await scoreboard();const nextStage=team?teams.find(t=>t.id===team)?.current_stage:null;
 // Signed media links expire after 60 minutes. Refresh before expiry without interrupting typing or video playback.
-if(media.length&&Date.now()-lastMediaRefreshAt>45*60*1000&&!document.activeElement?.closest("form")&&![...document.querySelectorAll("video")].some(v=>!v.paused)){
+if(media.length&&Date.now()-lastMediaRefreshAt>45*60*1000&&canRefreshView()&&![...document.querySelectorAll("video")].some(v=>!v.paused)){
 if(isAdmin)await adminView();else if(team)await teamView();return;
 }
-if(isAdmin&&!document.activeElement?.closest("form")){
+if(isAdmin&&canRefreshView()){
 const [pendingNow,skipsNow,lastMessage,lastMedia]=await Promise.all([
 sb.from("submissions").select("id").eq("status","pending"),
 sb.from("skip_requests").select("id").eq("status","pending"),
@@ -64,7 +66,7 @@ skipsNow.data.some(s=>!knownSkips.has(s.id))||
 (lastMessage.data[0]&&!messages.some(m=>m.id===lastMessage.data[0].id))||
 (lastMedia.data[0]&&!media.some(m=>m.id===lastMedia.data[0].id));
 if(hasNewWork)await adminView();
-}else if(team&&previousStage!=null&&nextStage!=null&&previousStage!==nextStage){await teamView()}else if(team&&!isAdmin&&!document.activeElement?.closest("form")){const recent=await sb.from("messages").select("id").eq("team_id",team).order("created_at",{ascending:false}).limit(1);if(recent.error)throw recent.error;if(messageChanged(recent.data,messages)){await teamView()}else{const pendingSubIds=subs.filter(s=>s.status==="pending").map(s=>s.id);const pendingSkipIds=skips.filter(s=>s.status==="pending").map(s=>s.id);if(pendingSubIds.length||pendingSkipIds.length){const [subCheck,skipCheck]=await Promise.all([pendingSubIds.length?sb.from("submissions").select("id,status").eq("team_id",team).in("id",pendingSubIds):Promise.resolve(null),pendingSkipIds.length?sb.from("skip_requests").select("id,status").eq("team_id",team).in("id",pendingSkipIds):Promise.resolve(null)]);if(subCheck?.error)throw subCheck.error;if(skipCheck?.error)throw skipCheck.error;if((subCheck&&(subCheck.data.length!==pendingSubIds.length||subCheck.data.some(s=>s.status!=="pending")))||(skipCheck&&(skipCheck.data.length!==pendingSkipIds.length||skipCheck.data.some(s=>s.status!=="pending"))))await teamView()}}}}catch(e){console.error('Automatisk oppdatering feilet',e)}finally{stageRefreshBusy=false}},20000);
+}else if(team&&previousStage!=null&&nextStage!=null&&previousStage!==nextStage){await teamView()}else if(team&&!isAdmin&&canRefreshView()){const recent=await sb.from("messages").select("id").eq("team_id",team).order("created_at",{ascending:false}).limit(1);if(recent.error)throw recent.error;if(messageChanged(recent.data,messages)){await teamView()}else{const pendingSubIds=subs.filter(s=>s.status==="pending").map(s=>s.id);const pendingSkipIds=skips.filter(s=>s.status==="pending").map(s=>s.id);if(pendingSubIds.length||pendingSkipIds.length){const [subCheck,skipCheck]=await Promise.all([pendingSubIds.length?sb.from("submissions").select("id,status").eq("team_id",team).in("id",pendingSubIds):Promise.resolve(null),pendingSkipIds.length?sb.from("skip_requests").select("id,status").eq("team_id",team).in("id",pendingSkipIds):Promise.resolve(null)]);if(subCheck?.error)throw subCheck.error;if(skipCheck?.error)throw skipCheck.error;if((subCheck&&(subCheck.data.length!==pendingSubIds.length||subCheck.data.some(s=>s.status!=="pending")))||(skipCheck&&(skipCheck.data.length!==pendingSkipIds.length||skipCheck.data.some(s=>s.status!=="pending"))))await teamView()}}}}catch(e){console.error('Automatisk oppdatering feilet',e)}finally{stageRefreshBusy=false}},20000);
 window.addEventListener("beforeunload",event=>{if(!mediaUploadBusy)return;event.preventDefault();event.returnValue="";});
 window.addEventListener("offline",()=>note("Ingen internettforbindelse. Vent med innsendinger til du er på nett igjen."));
 window.addEventListener("online",()=>note("Internett er tilbake. Oppdater siden hvis poeng eller innsendinger mangler.",true));
