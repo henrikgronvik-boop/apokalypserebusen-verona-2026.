@@ -29,6 +29,10 @@ BEGIN
   END IF;
   INSERT INTO public.team_members(user_id,team_id) VALUES (v_uid,v_team)
     ON CONFLICT (user_id) DO NOTHING;
+  -- Verify membership even if concurrent requests raced on the same user.
+  IF NOT EXISTS (SELECT 1 FROM public.team_members m WHERE m.user_id=v_uid AND m.team_id=v_team) THEN
+    RAISE EXCEPTION 'Brukeren ble registrert på et annet lag samtidig';
+  END IF;
   RETURN v_team;
 END;
 $function$;
