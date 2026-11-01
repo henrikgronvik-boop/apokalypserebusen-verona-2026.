@@ -26,7 +26,7 @@ function formatSecretRemaining(deadlineMs,nowMs=Date.now()){if(!Number.isFinite(
 function updateSecretDeadlines(){document.querySelectorAll("[data-secret-deadline]").forEach(el=>{el.textContent=formatSecretRemaining(Number(el.dataset.secretDeadline))})}
 
 function hasUnsentDraft(){return [...document.querySelectorAll('form textarea,form input[type="file"]')].some(el=>el.type==="file"?el.files.length>0:el.value.trim().length>0)}
-function canRefreshView(){return mediaUploadsInFlight===0&&!document.getElementById("new-team-code")&&!document.activeElement?.closest("form")&&!hasUnsentDraft()}
+function canRefreshView(){return mediaUploadsInFlight===0&&!document.getElementById("new-team-code")&&!document.activeElement?.closest("form")&&!hasUnsentDraft()&&![...document.querySelectorAll("video")].some(video=>!video.paused&&!video.ended)}
 function box(title,body,extra=""){return '<section class="panel '+extra+'"><h2>'+title+'</h2>'+body+'</section>'}
 function button(txt,fn,cls="secondary"){return '<button type="button" class="'+cls+'" data-action="'+fn+'">'+txt+'</button>'}
 async function query(table,columns="*"){const r=await sb.from(table).select(columns);if(r.error)throw r.error;return r.data||[]}
