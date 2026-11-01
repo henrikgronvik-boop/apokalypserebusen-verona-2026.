@@ -1,7 +1,7 @@
-# Gratis statisk publisering av Apokalypserebusen.
-# Krever at GitHub Pages er aktivert med Source: GitHub Actions i repoets Settings > Pages.
-# Publiserer KUN index.html; ingen SQL-filer, tester eller hemmeligheter inngår i nettstedet.
-name: Publiser Apokalypserebusen (GitHub Pages)
+# GitHub Pages is already deploying from the repository's configured Pages source.
+# This workflow validates the app without launching a competing Pages deployment.
+# A second deploy-pages job can fail when the built-in Pages deployment is in progress.
+name: Valider Apokalypserebusen
 
 on:
   push:
@@ -14,24 +14,13 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: github-pages
-  cancel-in-progress: false
-
 jobs:
-  deploy:
+  validate:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Hent kildekode
         uses: actions/checkout@v4
-      - name: Valider statisk app
+      - name: Kontroller statisk app
         shell: bash
         run: |
           set -euo pipefail
@@ -41,18 +30,6 @@ jobs:
             echo 'Mulig hemmelig nøkkel i offentlig app. Avbryter.'
             exit 1
           fi
-          # Kontroller JavaScript-syntaksen før vi publiserer.
           sed -n '/<script type="module">/,/<\/script>/p' index.html | sed '1d;$d' > /tmp/rebus-app.mjs
           test -s /tmp/rebus-app.mjs
           node --check /tmp/rebus-app.mjs
-          mkdir -p site
-          cp index.html site/index.html
-      - name: Konfigurer GitHub Pages
-        uses: actions/configure-pages@v5
-      - name: Last opp kun nettsiden
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: site
-      - name: Publiser til GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
