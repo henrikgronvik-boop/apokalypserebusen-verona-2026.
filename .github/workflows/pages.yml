@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - index.html
+      - tests/media_refresh_guard.test.mjs
       - .github/workflows/pages.yml
   workflow_dispatch:
 
@@ -33,3 +34,5 @@ jobs:
           sed -n '/<script type="module">/,/<\/script>/p' index.html | sed '1d;$d' > /tmp/rebus-app.mjs
           test -s /tmp/rebus-app.mjs
           node --check /tmp/rebus-app.mjs
+      - name: Test medieopplasting og oppdateringsvern
+        run: node --test tests/media_refresh_guard.test.mjs
