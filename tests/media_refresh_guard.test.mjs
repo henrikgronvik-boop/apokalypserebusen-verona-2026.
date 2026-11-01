@@ -39,6 +39,45 @@ test("upload counter and navigation protection remain wired",()=>{
   assert.match(html,/async function uploadFiles\([^)]*\)\{mediaUploadsInFlight\+\+;/);
   assert.match(html,/finally\{mediaUploadsInFlight=Math\.max\(0,mediaUploadsInFlight-1\)\}/);
   assert.match(html,/document\.hidden\|\|mediaUploadsInFlight>0/);
-  assert.match(html,/beforeunload",event=>\{if\(mediaUploadsInFlight===0\)return;/);
+  assert.match(html,/beforeunload",event=>\{if\(mediaUploadsInFlight===0&&!hasUnsentDraft\(\)\)return;/);
   assert.doesNotMatch(html,/mediaUploadBusy/);
+});
+
+const manualGuard=html.match(/function confirmManualRefresh\(\)\{[^\n]*\}/)?.[0];
+assert.ok(manualGuard,"confirmManualRefresh must exist");
+
+function manualRefresh(uploads,{draft=false,codeOpen=false,playingVideo=false,confirmation=true}={}){
+  const calls=[];
+  const document={
+    getElementById:()=>codeOpen?{}:null,
+    querySelectorAll:()=>playingVideo?[{paused:false,ended:false}]:[{paused:true,ended:false}]
+  };
+  const allowed=runInNewContext(manualGuard+"\nconfirmManualRefresh()",{
+    mediaUploadsInFlight:uploads,
+    document,
+    hasUnsentDraft:()=>draft,
+    confirm:()=>{calls.push("confirm");return confirmation;},
+    note:()=>calls.push("note")
+  });
+  return {allowed,calls};
+}
+
+test("manual refresh works when idle without prompting",()=>{
+  assert.deepEqual(manualRefresh(0),{allowed:true,calls:[]});
+});
+test("manual refresh cannot interrupt an active upload",()=>{
+  assert.deepEqual(manualRefresh(1),{allowed:false,calls:["note"]});
+  assert.deepEqual(manualRefresh(2,{confirmation:true}),{allowed:false,calls:["note"]});
+});
+test("unsent drafts require confirmation before manual refresh",()=>{
+  assert.deepEqual(manualRefresh(0,{draft:true,confirmation:false}),{allowed:false,calls:["confirm"]});
+  assert.deepEqual(manualRefresh(0,{draft:true,confirmation:true}),{allowed:true,calls:["confirm"]});
+});
+test("visible team code or playing video require confirmation",()=>{
+  assert.deepEqual(manualRefresh(0,{codeOpen:true,confirmation:false}),{allowed:false,calls:["confirm"]});
+  assert.deepEqual(manualRefresh(0,{playingVideo:true,confirmation:false}),{allowed:false,calls:["confirm"]});
+});
+test("both manual refresh buttons use the guard",()=>{
+  assert.match(html,/getElementById\("team-refresh"\)\.onclick=async e=>\{if\(!confirmManualRefresh\(\)\)return;/);
+  assert.match(html,/getElementById\("admin-refresh"\)\.onclick=async\(\)=>\{if\(!confirmManualRefresh\(\)\)return;/);
 });
