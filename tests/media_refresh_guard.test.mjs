@@ -81,3 +81,22 @@ test("both manual refresh buttons use the guard",()=>{
   assert.match(html,/getElementById\("team-refresh"\)\.onclick=async e=>\{if\(!confirmManualRefresh\(\)\)return;/);
   assert.match(html,/getElementById\("admin-refresh"\)\.onclick=async\(\)=>\{if\(!confirmManualRefresh\(\)\)return;/);
 });
+
+const mediaDetector=html.match(/const hasNewTeamMedia=[^\n]*;/)?.[0];
+assert.ok(mediaDetector,"hasNewTeamMedia must exist");
+function hasNewMedia(latest,known){
+  return runInNewContext(mediaDetector+"\nhasNewTeamMedia(latest,known)",{latest,known});
+}
+test("team refresh detects new proof files but ignores known or empty media",()=>{
+  assert.equal(hasNewMedia([{id:"new"}],[{id:"old"}]),true);
+  assert.equal(hasNewMedia([{id:"known"}],[{id:"known"}]),false);
+  assert.equal(hasNewMedia([],[{id:"known"}]),false);
+  assert.equal(hasNewMedia([{id:"known"}],[]),true);
+});
+test("live updates poll own-team media and recheck draft safety after network calls",()=>{
+  assert.ok(html.includes('sb.from("media").select("id").eq("team_id",team).order("created_at",{ascending:false}).limit(1)'));
+  assert.ok(html.includes('if((messageChanged(recent.data,messages)||hasNewTeamMedia(recentMedia.data,media))&&canRefreshView())'));
+  assert.ok(html.includes('if(hasNewWork&&canRefreshView())await adminView()'));
+  assert.ok(html.includes('if(specialNow.data.some(x=>!tasks.some(t=>t.id===x.id))&&canRefreshView())'));
+  assert.ok(html.includes('&&canRefreshView())await teamView()}}}}catch(e)'));
+});
