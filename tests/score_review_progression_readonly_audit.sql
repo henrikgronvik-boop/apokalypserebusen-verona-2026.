@@ -13,8 +13,10 @@ WITH awarded AS (
     WHERE t.score IS DISTINCT FROM coalesce(e.expected_score,0)) AS passed
  UNION ALL SELECT 2, 'Pending/rejected submissions award zero points',
   NOT EXISTS (SELECT 1 FROM public.submissions WHERE status<>'approved' AND coalesce(awarded_points,0)<>0)
- UNION ALL SELECT 3, 'Approved submissions have positive awarded points',
-  NOT EXISTS (SELECT 1 FROM public.submissions WHERE status='approved' AND coalesce(awarded_points,0)<=0)
+ UNION ALL SELECT 3, 'Approved awards are positive except zero-point nonwinning finale',
+  NOT EXISTS (SELECT 1 FROM public.submissions s JOIN public.tasks t ON t.id=s.task_id
+    WHERE s.status='approved' AND (s.awarded_points IS NULL OR s.awarded_points<0
+      OR (s.awarded_points=0 AND t.special_key IS DISTINCT FROM 'grand_finale')))
  UNION ALL SELECT 4, 'Awards respect task points plus optional 200 reconstruction bonus',
   NOT EXISTS (SELECT 1 FROM public.submissions s JOIN public.tasks t ON t.id=s.task_id
     WHERE s.status='approved' AND s.awarded_points >
@@ -41,6 +43,25 @@ WITH awarded AS (
     WHERE s.status='approved' AND t.requires_release AND t.released_at IS NULL)
  UNION ALL SELECT 12, 'All submissions have team and task references',
   NOT EXISTS (SELECT 1 FROM public.submissions WHERE team_id IS NULL OR task_id IS NULL)
+ UNION ALL SELECT 13, 'Finale awards only 0 or 1500 points',
+  NOT EXISTS (SELECT 1 FROM public.submissions s JOIN public.tasks t ON t.id=s.task_id
+    WHERE s.status='approved' AND t.special_key='grand_finale'
+      AND s.awarded_points NOT IN (0,1500))
+ UNION ALL SELECT 14, 'At most one finale winner',
+  (SELECT count(*) FROM public.submissions s JOIN public.tasks t ON t.id=s.task_id
+    WHERE s.status='approved' AND t.special_key='grand_finale' AND s.awarded_points=1500)<=1
+ UNION ALL SELECT 15, 'Reconstruction awards only 600 or 800 points',
+  NOT EXISTS (SELECT 1 FROM public.submissions s JOIN public.tasks t ON t.id=s.task_id
+    WHERE s.status='approved' AND t.special_key='perfect_reconstruction'
+      AND s.awarded_points NOT IN (600,800))
+ UNION ALL SELECT 16, 'At most one reconstruction bonus winner',
+  (SELECT count(*) FROM public.submissions s JOIN public.tasks t ON t.id=s.task_id
+    WHERE s.status='approved' AND t.special_key='perfect_reconstruction' AND s.awarded_points=800)<=1
+ UNION ALL SELECT 17, 'Other approved tasks award fixed points',
+  NOT EXISTS (SELECT 1 FROM public.submissions s JOIN public.tasks t ON t.id=s.task_id
+    WHERE s.status='approved' AND t.special_key IS DISTINCT FROM 'grand_finale'
+      AND t.special_key IS DISTINCT FROM 'perfect_reconstruction'
+      AND s.awarded_points IS DISTINCT FROM t.points)
 )
 SELECT id,test,CASE WHEN coalesce(passed,false) THEN 'PASS' ELSE 'FAIL' END status
 FROM checks ORDER BY id;
