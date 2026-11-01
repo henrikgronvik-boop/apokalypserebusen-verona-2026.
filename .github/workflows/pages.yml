@@ -1,0 +1,54 @@
+# Gratis statisk publisering av Apokalypserebusen.
+# Krever at GitHub Pages er aktivert med Source: GitHub Actions i repoets Settings > Pages.
+# Publiserer KUN index.html; ingen SQL-filer, tester eller hemmeligheter inngår i nettstedet.
+name: Publiser Apokalypserebusen (GitHub Pages)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - index.html
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Hent kildekode
+        uses: actions/checkout@v4
+      - name: Valider statisk app
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s index.html
+          grep -q 'Apokalypserebusen' index.html
+          if grep -Eqi 'service_role|sb_secret_' index.html; then
+            echo 'Mulig hemmelig nøkkel i offentlig app. Avbryter.'
+            exit 1
+          fi
+          mkdir -p site
+          cp index.html site/index.html
+      - name: Konfigurer GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Last opp kun nettsiden
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+      - name: Publiser til GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
