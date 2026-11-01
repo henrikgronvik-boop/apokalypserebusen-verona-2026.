@@ -41,6 +41,10 @@ jobs:
             echo 'Mulig hemmelig nøkkel i offentlig app. Avbryter.'
             exit 1
           fi
+          # Kontroller JavaScript-syntaksen før vi publiserer.
+          sed -n '/<script type="module">/,/<\/script>/p' index.html | sed '1d;$d' > /tmp/rebus-app.mjs
+          test -s /tmp/rebus-app.mjs
+          node --check /tmp/rebus-app.mjs
           mkdir -p site
           cp index.html site/index.html
       - name: Konfigurer GitHub Pages
