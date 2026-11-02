@@ -159,3 +159,43 @@ test("score polling defers team view refresh while user has an unsent draft",()=
   assert.match(html,/teamSnapshotChanged\(previousTeam,currentTeam\)\)\{pendingTeamStageRefresh=true/);
   assert.match(html,/team&&pendingTeamStageRefresh&&canRefreshView\(\)\)\{await teamView\(\);pendingTeamStageRefresh=false/);
 });
+
+// Metadata recovery: a lost insert response must not create a false upload failure.
+const metadataHelper=html.match(/async function registerMediaMetadata\(record\)\{[^\n]*\}/)?.[0];
+assert.ok(metadataHelper,"registerMediaMetadata must exist");
+function verifyMetadata({insertError=null,stored=null,readError=null}={}){
+  const calls=[];
+  const sb={from:table=>{
+    assert.equal(table,"media");
+    return {
+      insert:async()=>{calls.push("insert");return {error:insertError}},
+      select:columns=>{assert.equal(columns,"team_id,submission_id,message_id,mime_type");calls.push("select");return {
+        eq:(key,value)=>{assert.equal(key,"storage_path");assert.equal(value,"team/parent/file.mp4");return {
+          maybeSingle:async()=>({data:stored,error:readError})
+        }}
+      }}
+    };
+  }};
+  const record={team_id:"team",submission_id:"parent",message_id:null,mime_type:"video/mp4",storage_path:"team/parent/file.mp4"};
+  return {result:runInNewContext(metadataHelper+"\nregisterMediaMetadata(record)",{sb,record}),calls};
+}
+test("successful media metadata insert does not require a second query",async()=>{
+  const x=verifyMetadata();await x.result;assert.deepEqual(x.calls,["insert"]);
+});
+test("matching metadata confirms success after a lost insert response",async()=>{
+  const x=verifyMetadata({insertError:new Error("network timeout"),stored:{team_id:"team",submission_id:"parent",message_id:null,mime_type:"video/mp4"}});
+  await x.result;assert.deepEqual(x.calls,["insert","select"]);
+});
+test("missing or mismatched metadata never counts as a confirmed upload",async()=>{
+  const failed=new Error("insert rejected");
+  await assert.rejects(verifyMetadata({insertError:failed}).result,/insert rejected/);
+  await assert.rejects(verifyMetadata({insertError:failed,stored:{team_id:"other",submission_id:"parent",message_id:null,mime_type:"video/mp4"}}).result,/insert rejected/);
+  await assert.rejects(verifyMetadata({insertError:failed,readError:new Error("read failed")}).result,/insert rejected/);
+});
+test("failed metadata registration reports an uploaded file reference without deleting storage",()=>{
+  assert.match(html,/let uploaded=false,path="";try/);
+  assert.match(html,/uploaded=true;const record=/);
+  assert.match(html,/Filen ble lagret, men registreringen kunne ikke bekreftes/);
+  assert.match(html,/Oppgi filreferansen til HK/);
+  assert.doesNotMatch(html,/\.remove\(\[path\]\)/);
+});
