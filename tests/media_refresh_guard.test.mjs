@@ -203,11 +203,12 @@ test("failed metadata registration reports an uploaded file reference without de
 
 const logoutGuard=html.match(/function confirmLogout\(\)\{[^\n]*\}/)?.[0];
 assert.ok(logoutGuard,"confirmLogout must exist");
-function checkLogout(uploads,{draft=false,anonymous=false,answers=[]}={}){
+function checkLogout(uploads,{draft=false,anonymous=false,codeOpen=false,answers=[]}={}){
   const calls=[];
   const allowed=runInNewContext(logoutGuard+"\nconfirmLogout()",{
     mediaUploadsInFlight:uploads,
     hasUnsentDraft:()=>draft,
+    document:{getElementById:id=>codeOpen&&id==="new-team-code"?{}:null},
     user:{is_anonymous:anonymous},
     note:()=>calls.push("note"),
     confirm:()=>{calls.push("confirm");return answers.shift()??true;}
@@ -233,4 +234,15 @@ test("anonymous logout still warns about losing team access",()=>{
 test("logout button checks guard and surfaces sign-out errors",()=>{
   assert.match(html,/getElementById\("logout"\)\.onclick=async\(\)=>\{if\(!confirmLogout\(\)\)return;/);
   assert.match(html,/const result=await sb\.auth\.signOut\(\);if\(result\.error\)throw result\.error;/);
+});
+
+// HK team codes are one-time secrets. A refresh or logout must warn before hiding them.
+test("one-time HK team code requires confirmation before logout",()=>{
+  assert.deepEqual(checkLogout(0,{codeOpen:true,answers:[false]}),{allowed:false,calls:["confirm"]});
+  assert.deepEqual(checkLogout(0,{codeOpen:true,answers:[true]}),{allowed:true,calls:["confirm"]});
+  assert.deepEqual(checkLogout(0,{codeOpen:true,anonymous:true,answers:[true,false]}),{allowed:false,calls:["confirm","confirm"]});
+});
+test("browser navigation warns while the one-time HK team code is visible",()=>{
+  assert.ok(html.includes('if(mediaUploadsInFlight===0&&!hasUnsentDraft()&&!document.getElementById("new-team-code"))return;'));
+  assert.match(html,/Den nye lagkoden vises bare én gang/);
 });
