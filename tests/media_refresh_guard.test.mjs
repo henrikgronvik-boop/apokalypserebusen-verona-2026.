@@ -39,7 +39,7 @@ test("upload counter and navigation protection remain wired",()=>{
   assert.match(html,/async function uploadFiles\([^)]*\)\{mediaUploadsInFlight\+\+;/);
   assert.match(html,/finally\{mediaUploadsInFlight=Math\.max\(0,mediaUploadsInFlight-1\)\}/);
   assert.match(html,/document\.hidden\|\|mediaUploadsInFlight>0/);
-  assert.match(html,/beforeunload",event=>\{if\(mediaUploadsInFlight===0&&!hasUnsentDraft\(\)\)return;/);
+  assert.match(html,/beforeunload",event=>\{if\(mediaUploadsInFlight===0&&!hasUnsentDraft\(\)&&!document\.getElementById\("new-team-code"\)\)return;/);
   assert.doesNotMatch(html,/mediaUploadBusy/);
 });
 
