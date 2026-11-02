@@ -163,6 +163,22 @@ test("score polling defers team view refresh while user has an unsent draft",()=
 // Metadata recovery: a lost insert response must not create a false upload failure.
 const transientMetadataHelper=html.match(/function isTransientMediaError\(error\)\{[^\n]*\}/)?.[0];
 assert.ok(transientMetadataHelper,"isTransientMediaError must exist");
+
+const classifyMediaError=error=>runInNewContext(transientMetadataHelper+"\nisTransientMediaError(error)",{error});
+test("media metadata retries HTTP 408 and mobile timeout failures",()=>{
+  assert.equal(classifyMediaError({status:408}),true);
+  assert.equal(classifyMediaError({status:"408"}),true);
+  assert.equal(classifyMediaError({message:"Request timed out"}),true);
+  assert.equal(classifyMediaError({message:"Network timeout"}),true);
+  assert.equal(classifyMediaError({message:"Failed to fetch"}),true);
+});
+test("media metadata does not retry authentication, RLS or validation failures",()=>{
+  assert.equal(classifyMediaError({status:401,message:"Unauthorized"}),false);
+  assert.equal(classifyMediaError({status:403,code:"42501",message:"row-level security policy"}),false);
+  assert.equal(classifyMediaError({status:400,message:"Unsupported MIME type"}),false);
+  assert.equal(classifyMediaError(null),false);
+});
+
 const metadataHelper=html.match(/async function registerMediaMetadata\(record\)\{[\s\S]*?(?=\nasync function uploadFiles\()/)?.[0];
 assert.ok(metadataHelper,"registerMediaMetadata must exist");
 function verifyMetadata({insertError=null,stored=null,readError=null}={}){
