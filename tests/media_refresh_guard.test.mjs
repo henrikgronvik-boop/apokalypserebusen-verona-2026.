@@ -161,6 +161,8 @@ test("score polling defers team view refresh while user has an unsent draft",()=
 });
 
 // Metadata recovery: a lost insert response must not create a false upload failure.
+const transientMetadataHelper=html.match(/function isTransientMediaError\(error\)\{[^\n]*\}/)?.[0];
+assert.ok(transientMetadataHelper,"isTransientMediaError must exist");
 const metadataHelper=html.match(/async function registerMediaMetadata\(record\)\{[^\n]*\}/)?.[0];
 assert.ok(metadataHelper,"registerMediaMetadata must exist");
 function verifyMetadata({insertError=null,stored=null,readError=null}={}){
@@ -177,7 +179,7 @@ function verifyMetadata({insertError=null,stored=null,readError=null}={}){
     };
   }};
   const record={team_id:"team",submission_id:"parent",message_id:null,mime_type:"video/mp4",storage_path:"team/parent/file.mp4"};
-  return {result:runInNewContext(metadataHelper+"\nregisterMediaMetadata(record)",{sb,record}),calls};
+  return {result:runInNewContext(transientMetadataHelper+"\n"+metadataHelper+"\nregisterMediaMetadata(record)",{sb,record}),calls};
 }
 test("successful media metadata insert does not require a second query",async()=>{
   const x=verifyMetadata();await x.result;assert.deepEqual(x.calls,["insert"]);
