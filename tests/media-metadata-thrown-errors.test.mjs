@@ -37,7 +37,7 @@ function harness(insertResults,lookupResults=[]){
   }
  };
  vm.createContext(context);
- vm.runInContext(source+"\\nglobalThis.uploadMedia=uploadFiles;",context);
+ vm.runInContext(source+"\nglobalThis.uploadMedia=uploadFiles;",context);
  const file={name:"evidence.mp4",type:"video/mp4",size:2048};
  return {upload:()=>context.uploadMedia([file],"team-a","submission-a","submission_id"),uploads,inserts,lookups,notices,delays};
 }
