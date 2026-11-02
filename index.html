@@ -68,7 +68,7 @@ async function loadMedia(rows){const ids=new Set(rows.map(r=>r.id));const result
 function mediaHtml(id,kind){return media.filter(m=>m[kind]===id&&m.url).map(m=>m.mime_type.startsWith("image/")?'<img loading="lazy" class="media" src="'+esc(m.url)+'" alt="Innsendt bilde">':'<video class="media" controls preload="metadata" src="'+esc(m.url)+'"></video>').join("")}
 const MEDIA_EXTENSIONS=Object.freeze({"image/jpeg":"jpg","image/png":"png","image/webp":"webp","video/mp4":"mp4","video/quicktime":"mov","video/webm":"webm"});
 function validateFiles(files){for(const f of files){if(f.size===0)throw new Error("Filen «"+f.name+"» er tom. Velg en annen fil.");if(f.size>50*1024*1024)throw new Error("Filen «"+f.name+"» er større enn 50 MB. Velg en kortere video.");if(!Object.prototype.hasOwnProperty.call(MEDIA_EXTENSIONS,f.type))throw new Error("Filen «"+f.name+"» har et format som ikke støttes. Bruk JPG, PNG, WebP, MP4, MOV eller WebM. HEIC-bilder må konverteres til JPG.");}}
-function isTransientMediaError(error){const status=Number(error?.status||0);return status===429||status>=500||["PGRST000","PGRST001","PGRST002"].includes(error?.code)||/failed to fetch|fetch failed|networkerror|network request failed/i.test(error?.message||"");}
+function isTransientMediaError(error){const status=Number(error?.status||0);return status===408||status===429||status>=500||["PGRST000","PGRST001","PGRST002"].includes(error?.code)||/failed to fetch|fetch failed|networkerror|network request failed|request timed out|network timeout|timed out/i.test(error?.message||"");}
 async function registerMediaMetadata(record){
  const fields=["team_id","submission_id","message_id","mime_type"];
  for(let attempt=0;attempt<3;attempt++){
