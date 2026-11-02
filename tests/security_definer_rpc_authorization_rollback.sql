@@ -51,7 +51,7 @@ BEGIN
  PERFORM set_config('request.jwt.claim.sub',hk_uid::text,true);
  FOR test_case IN
    SELECT * FROM (VALUES
-     ('HK join by name','SELECT public.join_rebus_team_by_name(''ROLLBACK-ONLY'')','Administrator kan ikke bli med på et lag'),
+     ('HK join by name','SELECT public.join_rebus_team_by_name(''ROLLBACK-ONLY'')','Bruk lagkode fra HK for å bli med på laget'),
      ('HK join by code','SELECT public.join_rebus_team_by_code(''ROLLBACK-INVALID-CODE'')','HK kan ikke bli med på et lag')
    ) AS t(label,stmt,expected)
  LOOP
