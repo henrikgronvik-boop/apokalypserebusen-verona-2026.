@@ -163,7 +163,7 @@ test("score polling defers team view refresh while user has an unsent draft",()=
 // Metadata recovery: a lost insert response must not create a false upload failure.
 const transientMetadataHelper=html.match(/function isTransientMediaError\(error\)\{[^\n]*\}/)?.[0];
 assert.ok(transientMetadataHelper,"isTransientMediaError must exist");
-const metadataHelper=html.match(/async function registerMediaMetadata\(record\)\{[^\n]*\}/)?.[0];
+const metadataHelper=html.match(/async function registerMediaMetadata\(record\)\{[\s\S]*?(?=\nasync function uploadFiles\()/)?.[0];
 assert.ok(metadataHelper,"registerMediaMetadata must exist");
 function verifyMetadata({insertError=null,stored=null,readError=null}={}){
   const calls=[];
