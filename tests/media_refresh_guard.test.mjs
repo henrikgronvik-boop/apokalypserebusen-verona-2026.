@@ -135,3 +135,27 @@ test("readonly, disabled, hidden and unchanged checkbox controls do not block re
   assert.equal(hasDraft([{tagName:"INPUT",type:"checkbox",checked:false,defaultChecked:false}]),false);
   assert.equal(hasDraft([{tagName:"INPUT",type:"checkbox",checked:true,defaultChecked:false}]),true);
 });
+
+
+const teamSnapshot=html.match(/const teamSnapshotChanged=[^\n]*;/)?.[0];
+assert.ok(teamSnapshot,"teamSnapshotChanged must exist");
+const snapshotChanged=(before,after)=>runInNewContext(teamSnapshot+"\nteamSnapshotChanged(before,after)",{before,after});
+
+test("team snapshot changes refresh approved award without a stage change",()=>{
+  const before={current_stage:2,stages_completed:1,score:600};
+  assert.equal(snapshotChanged(before,{...before,score:800}),true);
+  assert.equal(snapshotChanged(before,{...before,score:600}),false);
+});
+test("team snapshot changes still detect stage progress and ignore absent teams",()=>{
+  const before={current_stage:2,stages_completed:1,score:600};
+  assert.equal(snapshotChanged(before,{...before,current_stage:3}),true);
+  assert.equal(snapshotChanged(before,{...before,stages_completed:2}),true);
+  assert.equal(snapshotChanged(null,before),false);
+  assert.equal(snapshotChanged(before,null),false);
+});
+test("score polling defers team view refresh while user has an unsent draft",()=>{
+  assert.match(html,/const previousTeam=team\?teams\.find\(t=>t\.id===team\):null/);
+  assert.match(html,/const currentTeam=team\?teams\.find\(t=>t\.id===team\):null/);
+  assert.match(html,/teamSnapshotChanged\(previousTeam,currentTeam\)\)\{pendingTeamStageRefresh=true/);
+  assert.match(html,/team&&pendingTeamStageRefresh&&canRefreshView\(\)\)\{await teamView\(\);pendingTeamStageRefresh=false/);
+});
