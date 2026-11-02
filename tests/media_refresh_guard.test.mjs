@@ -199,3 +199,38 @@ test("failed metadata registration reports an uploaded file reference without de
   assert.match(html,/Oppgi filreferansen til HK/);
   assert.doesNotMatch(html,/\.remove\(\[path\]\)/);
 });
+
+
+const logoutGuard=html.match(/function confirmLogout\(\)\{[^\n]*\}/)?.[0];
+assert.ok(logoutGuard,"confirmLogout must exist");
+function checkLogout(uploads,{draft=false,anonymous=false,answers=[]}={}){
+  const calls=[];
+  const allowed=runInNewContext(logoutGuard+"\nconfirmLogout()",{
+    mediaUploadsInFlight:uploads,
+    hasUnsentDraft:()=>draft,
+    user:{is_anonymous:anonymous},
+    note:()=>calls.push("note"),
+    confirm:()=>{calls.push("confirm");return answers.shift()??true;}
+  });
+  return {allowed,calls};
+}
+test("logout is allowed when there is no active upload or draft",()=>{
+  assert.deepEqual(checkLogout(0),{allowed:true,calls:[]});
+});
+test("logout cannot interrupt active media uploads",()=>{
+  assert.deepEqual(checkLogout(1,{draft:true,anonymous:true}),{allowed:false,calls:["note"]});
+  assert.deepEqual(checkLogout(2),{allowed:false,calls:["note"]});
+});
+test("logout protects unsent messages and selected files",()=>{
+  assert.deepEqual(checkLogout(0,{draft:true,answers:[false]}),{allowed:false,calls:["confirm"]});
+  assert.deepEqual(checkLogout(0,{draft:true,answers:[true]}),{allowed:true,calls:["confirm"]});
+});
+test("anonymous logout still warns about losing team access",()=>{
+  assert.deepEqual(checkLogout(0,{anonymous:true,answers:[false]}),{allowed:false,calls:["confirm"]});
+  assert.deepEqual(checkLogout(0,{anonymous:true,answers:[true]}),{allowed:true,calls:["confirm"]});
+  assert.deepEqual(checkLogout(0,{draft:true,anonymous:true,answers:[true,false]}),{allowed:false,calls:["confirm","confirm"]});
+});
+test("logout button checks guard and surfaces sign-out errors",()=>{
+  assert.match(html,/getElementById\("logout"\)\.onclick=async\(\)=>\{if\(!confirmLogout\(\)\)return;/);
+  assert.match(html,/const result=await sb\.auth\.signOut\(\);if\(result\.error\)throw result\.error;/);
+});
