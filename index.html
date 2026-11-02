@@ -69,7 +69,26 @@ function mediaHtml(id,kind){return media.filter(m=>m[kind]===id&&m.url).map(m=>m
 const MEDIA_EXTENSIONS=Object.freeze({"image/jpeg":"jpg","image/png":"png","image/webp":"webp","video/mp4":"mp4","video/quicktime":"mov","video/webm":"webm"});
 function validateFiles(files){for(const f of files){if(f.size===0)throw new Error("Filen «"+f.name+"» er tom. Velg en annen fil.");if(f.size>50*1024*1024)throw new Error("Filen «"+f.name+"» er større enn 50 MB. Velg en kortere video.");if(!Object.prototype.hasOwnProperty.call(MEDIA_EXTENSIONS,f.type))throw new Error("Filen «"+f.name+"» har et format som ikke støttes. Bruk JPG, PNG, WebP, MP4, MOV eller WebM. HEIC-bilder må konverteres til JPG.");}}
 function isTransientMediaError(error){const status=Number(error?.status||0);return status===429||status>=500||["PGRST000","PGRST001","PGRST002"].includes(error?.code)||/failed to fetch|fetch failed|networkerror|network request failed/i.test(error?.message||"");}
-async function registerMediaMetadata(record){const fields=["team_id","submission_id","message_id","mime_type"];for(let attempt=0;attempt<3;attempt++){const inserted=await sb.from("media").insert(record);if(!inserted.error)return;const existing=await sb.from("media").select("team_id,submission_id,message_id,mime_type").eq("storage_path",record.storage_path).maybeSingle();if(!existing.error&&existing.data&&fields.every(key=>(existing.data[key]??null)===(record[key]??null)))return;if(existing.data||!isTransientMediaError(inserted.error)||attempt===2)throw inserted.error;await new Promise(resolve=>setTimeout(resolve,250*(attempt+1)));}}
+async function registerMediaMetadata(record){
+ const fields=["team_id","submission_id","message_id","mime_type"];
+ for(let attempt=0;attempt<3;attempt++){
+  let failure;
+  try{
+   const inserted=await sb.from("media").insert(record);
+   if(!inserted.error)return;
+   failure=inserted.error;
+  }catch(error){failure=error}
+  // A failed response may still mean the insert succeeded. Check before retrying.
+  let existing=null;
+  try{
+   const lookup=await sb.from("media").select("team_id,submission_id,message_id,mime_type").eq("storage_path",record.storage_path).maybeSingle();
+   if(!lookup.error)existing=lookup.data;
+  }catch(_lookupError){/* Keep the original insert failure for retry classification. */}
+  if(existing&&fields.every(key=>(existing[key]??null)===(record[key]??null)))return;
+  if(existing||!isTransientMediaError(failure)||attempt===2)throw failure;
+  await new Promise(resolve=>setTimeout(resolve,250*(attempt+1)));
+ }
+}
 async function uploadFiles(files,teamId,parentId,kind){mediaUploadsInFlight++;try{let errors=[];for(let i=0;i<files.length;i++){const f=files[i];if(flashTimer){clearTimeout(flashTimer);flashTimer=null}flash.innerHTML='<div class="alert">Laster opp vedlegg '+(i+1)+' av '+files.length+'. Ikke lukk siden før du får bekreftelse.</div>';let uploaded=false,path="";try{validateFiles([f]);const ext=MEDIA_EXTENSIONS[f.type];path=teamId+"/"+parentId+"/"+crypto.randomUUID()+"."+ext;const up=await sb.storage.from("rebus-bevis").upload(path,f,{contentType:f.type,upsert:false});if(up.error)throw up.error;uploaded=true;const record={team_id:teamId,storage_path:path,mime_type:f.type};record[kind]=parentId;await registerMediaMetadata(record)}catch(e){errors.push(f.name+": "+(uploaded?"Filen ble lagret, men registreringen kunne ikke bekreftes. Oppgi filreferansen til HK: "+path+". ":"")+(e.message||e))}}if(errors.length)note((errors.length===files.length?"Ingen vedlegg kunne bekreftes registrert. Kontakt HK ved vedvarende feil: ":"Noen vedlegg kunne ikke bekreftes registrert: ")+errors.join("; "));else if(files.length)flash.innerHTML="";return errors.length}finally{mediaUploadsInFlight=Math.max(0,mediaUploadsInFlight-1)}}
 async function teamView(){const t=teams.find(x=>x.id===team);if(!t){app.innerHTML=box("Lag mangler","<p>Kunne ikke finne laget ditt.</p>");return}const [ts,ss,ks,ms]=await Promise.all([query("tasks"),query("submissions"),query("skip_requests"),query("messages")]);const visited=n=>t.stages_completed===5||((n-t.start_stage+5)%5)<=t.stages_completed;tasks=ts.filter(x=>x.special_key==="secret_mission"||(x.post_finish?t.stages_completed===5:visited(x.stage))).sort((a,b)=>a.stage-b.stage||a.position-b.position);subs=ss.filter(x=>x.team_id===team);skips=ks.filter(x=>x.team_id===team);messages=ms.filter(x=>x.team_id===team).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at));await loadMedia([...subs,...messages]);const activeTasks=tasks.filter(x=>!x.post_finish&&x.special_key!=="secret_mission"&&x.stage===t.current_stage);
 const previousTasks=tasks.filter(x=>!x.post_finish&&x.special_key!=="secret_mission"&&x.stage!==t.current_stage).sort((a,b)=>((a.stage-t.start_stage+5)%5)-((b.stage-t.start_stage+5)%5)||a.position-b.position);
