@@ -192,7 +192,7 @@ function simulateMediaMetadataInsert(errors){
     };
   }};
   const record={team_id:"team",submission_id:"submission",storage_path:"team/submission/video.mp4",mime_type:"video/mp4"};
-  const result=runInNewContext(transientMetadataHelper+"\\n"+metadataHelper+"\\nregisterMediaMetadata(record)",{
+  const result=runInNewContext(transientMetadataHelper+"\n"+metadataHelper+"\nregisterMediaMetadata(record)",{
     sb,record,setTimeout:callback=>callback()
   });
   return {result,get inserts(){return inserts;},get lookups(){return lookups;}};
