@@ -100,3 +100,38 @@ test("live updates poll own-team media and recheck draft safety after network ca
   assert.ok(html.includes('if(specialNow.data.some(x=>!tasks.some(t=>t.id===x.id))&&canRefreshView())'));
   assert.ok(html.includes('&&canRefreshView())await teamView()}}}}catch(e)'));
 });
+
+const draftGuard=html.match(/function hasUnsentDraft\(\)\{[^\n]*\}/)?.[0];
+assert.ok(draftGuard,"hasUnsentDraft must exist");
+const hasDraft=elements=>runInNewContext(draftGuard+"\nhasUnsentDraft()",{
+  document:{querySelectorAll:()=>elements}
+});
+test("empty and unchanged form controls do not prevent refresh",()=>{
+  assert.equal(hasDraft([]),false);
+  assert.equal(hasDraft([{tagName:"TEXTAREA",type:"textarea",value:"",defaultValue:""}]),false);
+  assert.equal(hasDraft([{tagName:"INPUT",type:"number",value:"600",defaultValue:"600"}]),false);
+  assert.equal(hasDraft([{tagName:"INPUT",type:"file",files:[]}]),false);
+});
+test("typed text and changed numeric HK award are protected",()=>{
+  assert.equal(hasDraft([{tagName:"TEXTAREA",type:"textarea",value:"Bevis",defaultValue:""}]),true);
+  assert.equal(hasDraft([{tagName:"INPUT",type:"text",value:"Lag",defaultValue:""}]),true);
+  assert.equal(hasDraft([{tagName:"INPUT",type:"number",value:"800",defaultValue:"600"}]),true);
+});
+test("selected proof file is protected",()=>{
+  assert.equal(hasDraft([{tagName:"INPUT",type:"file",files:[{name:"bevis.mp4"}]}]),true);
+});
+test("selects use original option even without an explicit selected attribute",()=>{
+  const options=[{selected:true,defaultSelected:false},{selected:false,defaultSelected:false}];
+  assert.equal(hasDraft([{tagName:"SELECT",type:"select-one",options,selectedIndex:0}]),false);
+  assert.equal(hasDraft([{tagName:"SELECT",type:"select-one",options,selectedIndex:1}]),true);
+  const withDefault=[{defaultSelected:false},{defaultSelected:true}];
+  assert.equal(hasDraft([{tagName:"SELECT",type:"select-one",options:withDefault,selectedIndex:1}]),false);
+  assert.equal(hasDraft([{tagName:"SELECT",type:"select-one",options:withDefault,selectedIndex:0}]),true);
+});
+test("readonly, disabled, hidden and unchanged checkbox controls do not block refresh",()=>{
+  assert.equal(hasDraft([{tagName:"INPUT",type:"text",value:"new",defaultValue:"",readOnly:true}]),false);
+  assert.equal(hasDraft([{tagName:"INPUT",type:"text",value:"new",defaultValue:"",disabled:true}]),false);
+  assert.equal(hasDraft([{tagName:"INPUT",type:"hidden",value:"new",defaultValue:""}]),false);
+  assert.equal(hasDraft([{tagName:"INPUT",type:"checkbox",checked:false,defaultChecked:false}]),false);
+  assert.equal(hasDraft([{tagName:"INPUT",type:"checkbox",checked:true,defaultChecked:false}]),true);
+});
