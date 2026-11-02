@@ -181,6 +181,35 @@ test("media metadata does not retry authentication, RLS or validation failures",
 
 const metadataHelper=html.match(/async function registerMediaMetadata\(record\)\{[\s\S]*?(?=\nasync function uploadFiles\()/)?.[0];
 assert.ok(metadataHelper,"registerMediaMetadata must exist");
+
+function simulateMediaMetadataInsert(errors){
+  let inserts=0,lookups=0;
+  const sb={from:table=>{
+    assert.equal(table,"media");
+    return {
+      insert:async()=>({error:errors[inserts++]||null}),
+      select:()=>({eq:()=>({maybeSingle:async()=>{lookups++;return {data:null,error:null};}})})
+    };
+  }};
+  const record={team_id:"team",submission_id:"submission",storage_path:"team/submission/video.mp4",mime_type:"video/mp4"};
+  const result=runInNewContext(transientMetadataHelper+"\\n"+metadataHelper+"\\nregisterMediaMetadata(record)",{
+    sb,record,setTimeout:callback=>callback()
+  });
+  return {result,get inserts(){return inserts;},get lookups(){return lookups;}};
+}
+test("HTTP 408 retries only metadata registration after missing confirmation",async()=>{
+  const check=simulateMediaMetadataInsert([{status:408,message:"Request Timeout"},null]);
+  await check.result;
+  assert.equal(check.inserts,2);
+  assert.equal(check.lookups,1);
+});
+test("RLS denial stops metadata registration without retry",async()=>{
+  const check=simulateMediaMetadataInsert([{status:403,code:"42501",message:"RLS denied"}]);
+  await assert.rejects(check.result);
+  assert.equal(check.inserts,1);
+  assert.equal(check.lookups,1);
+});
+
 function verifyMetadata({insertError=null,stored=null,readError=null}={}){
   const calls=[];
   const sb={from:table=>{
