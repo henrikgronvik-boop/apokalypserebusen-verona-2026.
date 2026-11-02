@@ -79,8 +79,9 @@ setInterval(updateSecretDeadlines,1000);
 sb.auth.onAuthStateChange((event)=>{if(event==="SIGNED_OUT")setTimeout(boot,0)});
 const messageChanged=(latest,known)=>(latest?.[0]?.id||null)!==(known?.length?known[known.length-1].id:null);
 const hasNewTeamMedia=(latest,known)=>Boolean(latest?.[0]?.id)&&!known.some(m=>m.id===latest[0].id);
-let stageRefreshBusy=false,pendingTeamStageRefresh=false;setInterval(async()=>{if(!user||stageRefreshBusy||document.hidden||mediaUploadsInFlight>0)return;stageRefreshBusy=true;const previousStage=team?teams.find(t=>t.id===team)?.current_stage:null,previousCompleted=team?teams.find(t=>t.id===team)?.stages_completed:null;try{await scoreboard();const nextStage=team?teams.find(t=>t.id===team)?.current_stage:null,nextCompleted=team?teams.find(t=>t.id===team)?.stages_completed:null;
-if(team&&previousStage!=null&&nextStage!=null&&(previousStage!==nextStage||previousCompleted!==nextCompleted)){pendingTeamStageRefresh=true;if(!canRefreshView())note("HK har endret del. Fullfør meldingen eller innsendingen først, så oppdateres oppgavene automatisk.",true)}
+const teamSnapshotChanged=(before,after)=>Boolean(before&&after)&&(before.current_stage!==after.current_stage||before.stages_completed!==after.stages_completed||before.score!==after.score);
+let stageRefreshBusy=false,pendingTeamStageRefresh=false;setInterval(async()=>{if(!user||stageRefreshBusy||document.hidden||mediaUploadsInFlight>0)return;stageRefreshBusy=true;const previousTeam=team?teams.find(t=>t.id===team):null;try{await scoreboard();const currentTeam=team?teams.find(t=>t.id===team):null;
+if(team&&teamSnapshotChanged(previousTeam,currentTeam)){pendingTeamStageRefresh=true;if(!canRefreshView())note("HK har oppdatert poeng eller del. Fullfør meldingen eller innsendingen først, så oppdateres visningen automatisk.",true)}
 // Signed media links expire after 60 minutes. Refresh before expiry without interrupting typing or video playback.
 if(media.length&&Date.now()-lastMediaRefreshAt>45*60*1000&&canRefreshView()&&![...document.querySelectorAll("video")].some(v=>!v.paused)){
 if(isAdmin)await adminView();else if(team)await teamView();return;
