@@ -25,6 +25,13 @@ WITH expected(special_key,stage,title,points,release_required,after_finish) AS (
    SELECT 1 FROM public.tasks t WHERE t.special_key IS NOT NULL
    AND NOT EXISTS (SELECT 1 FROM expected e WHERE e.special_key=t.special_key)
  )
+ UNION ALL SELECT 'special keys unique',NOT EXISTS (
+   SELECT 1 FROM public.tasks WHERE special_key IS NOT NULL
+   GROUP BY special_key HAVING count(*) <> 1
+ )
+ UNION ALL SELECT 'all tasks have positive points',NOT EXISTS (
+   SELECT 1 FROM public.tasks WHERE points IS NULL OR points <= 0
+ )
  UNION ALL SELECT 'specials never count toward 2-of-5',NOT EXISTS (
    SELECT 1 FROM public.tasks WHERE special_key IS NOT NULL AND bonus IS DISTINCT FROM true
  )
